@@ -1,12 +1,26 @@
 {
   "tasks": {
-    "start": "deno run --allow-net main.ts"
+    "start": "deno run --allow-net main.ts",
+    "dev": "deno run --watch --allow-net main.ts"
   },
   "compilerOptions": {
     "allowJs": true,
-    "lib": ["deno.window"]
+    "strict": true,
+    "noImplicitAny": false
   },
-  "imports": {
-    "http/": "https://deno.land/std@0.168.0/http/"
+  "lint": {
+    "files": {
+      "include": ["main.ts"]
+    },
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "options": {
+      "lineWidth": 100,
+      "indentWidth": 2,
+      "singleQuote": true
+    }
   }
 }
