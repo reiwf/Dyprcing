@@ -4,12 +4,16 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import { supabase, type Listing, type Reservation } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { parseICalFeed, type ICalEvent } from '../utils/icalParser';
 
 // Configure which service to use for iCal fetching
 const ICAL_SERVICE = import.meta.env.VITE_ICAL_SERVICE || 'deno'; // 'supabase', 'proxy', or 'deno'
 const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
 const DENO_URL = import.meta.env.VITE_DENO_URL || 'http://localhost:8000';
+
+interface ICalEvent {
+  startDate: string;
+  endDate: string;
+}
 
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -62,7 +66,7 @@ export function ListingDetail() {
     }
   };
 
-  const fetchIcalData = async (url: string) => {
+  const fetchIcalData = async (url: string): Promise<ICalEvent[]> => {
     switch (ICAL_SERVICE) {
       case 'supabase':
         // Use Supabase Edge Function
@@ -117,14 +121,13 @@ export function ListingDetail() {
     if (!icalUrl.trim()) return;
 
     try {
-      const icalData = await fetchIcalData(icalUrl);
-      const events = await parseICalFeed(icalData);
+      const events = await fetchIcalData(icalUrl);
 
       // Prepare reservations for upsert
       const newReservations = events.map((event: ICalEvent) => ({
         listing_id: id,
-        start_date: event.startDate.toISOString().split('T')[0],
-        end_date: event.endDate.toISOString().split('T')[0],
+        start_date: event.startDate.split('T')[0],
+        end_date: event.endDate.split('T')[0],
         source: 'airbnb',
       }));
 
