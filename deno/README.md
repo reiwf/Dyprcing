@@ -13,7 +13,7 @@ A simple Deno service that proxies iCal calendar requests to avoid CORS issues.
    - Click "New Project"
    - Choose "Deploy from GitHub"
    - Select your repository and branch
-   - Set the project directory to `git`
+   - Set the project directory to `/deno`
    - Set the entry point file to `main.ts`
 
 3. Configure Environment Variables:
@@ -71,4 +71,3 @@ Error Response:
 
 - The service uses CORS headers to allow requests from any origin
 - No authentication is required as the service only proxies publicly available iCal feeds
-- Rate limiting and other security measures should be implemented in production
