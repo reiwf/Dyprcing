@@ -39,6 +39,6 @@ jobs:
         with:
           project: "reilai-dyprcing-64"
           entrypoint: "main.ts"
-          root: "/deno"
+          root: "deno"
           
           
