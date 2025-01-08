@@ -37,8 +37,8 @@ jobs:
       - name: Upload to Deno Deploy
         uses: denoland/deployctl@v1
         with:
-          project: "reilai-dyprcing-57"
-          entrypoint: "deno/main.ts"
-          root: "dist"
+          project: "reilai-dyprcing-64"
+          entrypoint: "main.ts"
+          root: "/deno"
           
           
