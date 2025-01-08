@@ -5,21 +5,8 @@ export interface ICalEvent {
   endDate: Date;
 }
 
-export async function parseICalFeed(icalUrl: string): Promise<ICalEvent[]> {
+export async function parseICalFeed(icalData: string): Promise<ICalEvent[]> {
   try {
-    // Add CORS proxy for development
-    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-    const response = await fetch(proxyUrl + icalUrl, {
-      headers: {
-        'Origin': window.location.origin
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const icalData = await response.text();
     const jcalData = ICAL.parse(icalData);
     const comp = new ICAL.Component(jcalData);
     const vevents = comp.getAllSubcomponents('vevent');
@@ -32,7 +19,7 @@ export async function parseICalFeed(icalUrl: string): Promise<ICalEvent[]> {
       };
     });
   } catch (error) {
-    console.error('Error parsing iCal feed:', error);
+    console.error('Error parsing iCal data:', error);
     throw new Error('Failed to parse calendar data');
   }
 }

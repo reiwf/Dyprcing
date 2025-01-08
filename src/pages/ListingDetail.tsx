@@ -6,6 +6,11 @@ import { supabase, type Listing, type Reservation } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { parseICalFeed, type ICalEvent } from '../utils/icalParser';
 
+// Configure which service to use for iCal fetching
+const ICAL_SERVICE = import.meta.env.VITE_ICAL_SERVICE || 'deno'; // 'supabase', 'proxy', or 'deno'
+const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
+const DENO_URL = import.meta.env.VITE_DENO_URL || 'http://localhost:8000';
+
 export function ListingDetail() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -57,11 +62,63 @@ export function ListingDetail() {
     }
   };
 
+  const fetchIcalData = async (url: string) => {
+    switch (ICAL_SERVICE) {
+      case 'supabase':
+        // Use Supabase Edge Function
+        const { data, error } = await supabase.functions.invoke('fetch-ical', {
+          body: { icalUrl: url },
+        });
+        if (error) throw error;
+        return data.data;
+
+      case 'proxy':
+        // Use Express proxy server
+        const proxyResponse = await fetch(`${PROXY_URL}/fetch-ical`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ icalUrl: url }),
+        });
+
+        if (!proxyResponse.ok) {
+          const error = await proxyResponse.json();
+          throw new Error(error.message || 'Failed to fetch calendar data');
+        }
+
+        const proxyData = await proxyResponse.json();
+        return proxyData.data;
+
+      case 'deno':
+        // Use Deno Deploy service
+        const denoResponse = await fetch(DENO_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ icalUrl: url }),
+        });
+
+        if (!denoResponse.ok) {
+          const error = await denoResponse.json();
+          throw new Error(error.message || 'Failed to fetch calendar data');
+        }
+
+        const denoData = await denoResponse.json();
+        return denoData.data;
+
+      default:
+        throw new Error(`Unknown iCal service: ${ICAL_SERVICE}`);
+    }
+  };
+
   const handleImportIcal = async () => {
     if (!icalUrl.trim()) return;
 
     try {
-      const events = await parseICalFeed(icalUrl);
+      const icalData = await fetchIcalData(icalUrl);
+      const events = await parseICalFeed(icalData);
 
       // Prepare reservations for upsert
       const newReservations = events.map((event: ICalEvent) => ({

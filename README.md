@@ -19,32 +19,78 @@ A React + TypeScript application for managing Airbnb listings with dynamic prici
 - FullCalendar
 - Tailwind CSS
 - Vite
-- Render.com for deployment
+- Multiple deployment options for iCal fetching
 
 ## Prerequisites
 
 - Node.js 16+
 - npm 7+
 - Supabase account
-- Render.com account (for deployment)
+- One of the following for iCal fetching:
+  - Deno Deploy account (recommended)
+  - Render.com account
+  - Supabase project with Edge Functions enabled
 
-## Supabase Setup Guide
+## iCal Integration Options
 
-1. Create a Supabase Project:
+The application supports three methods for handling iCal calendar imports:
+
+### Option 1: Deno Deploy (Recommended)
+
+The simplest option that uses Deno Deploy to handle iCal fetching:
+
+1. Deploy the Deno service:
+   - See `/deno/README.md` for deployment instructions
+   - Get your Deno Deploy URL
+
+2. Configure the frontend:
+   ```env
+   VITE_ICAL_SERVICE=deno
+   VITE_DENO_URL=https://your-project-name.deno.dev
+   ```
+
+### Option 2: Express Proxy Server
+
+A standalone Node.js server that can be deployed to Render.com:
+
+1. Deploy the proxy server:
+   - Push the `/server` directory to your repository
+   - Create a new Web Service on Render.com
+   - Use the settings from `/server/render.yaml`
+
+2. Configure the frontend:
+   ```env
+   VITE_ICAL_SERVICE=proxy
+   VITE_PROXY_URL=your-render-service-url
+   ```
+
+### Option 3: Supabase Edge Function
+
+Uses Supabase's Edge Functions (requires a paid plan):
+
+1. Deploy the Edge Function:
+   - See Supabase Edge Functions documentation
+   - Deploy the function from `/supabase/functions/fetch-ical`
+
+2. Configure the frontend:
+   ```env
+   VITE_ICAL_SERVICE=supabase
+   ```
+
+## Local Development Setup
+
+1. Clone the repository
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Create a Supabase project:
    - Go to [Supabase](https://supabase.com)
-   - Sign up or log in
-   - Click "New Project"
-   - Fill in your project details
-   - Wait for the database to be ready
-
-2. Get Your Project Credentials:
-   - In your project dashboard, go to Settings -> API
-   - Copy your Project URL (under Config / URL)
-   - Copy your anon/public key (under Project API keys)
-
-3. Set Up Database Tables:
-   - Go to SQL Editor in your Supabase dashboard
-   - Run the following SQL to create the necessary tables and policies:
+   - Create a new project
+   - Get your project URL and anon key
+   - Create the following tables:
 
    ```sql
    -- Create listings table
@@ -96,94 +142,55 @@ A React + TypeScript application for managing Airbnb listings with dynamic prici
      );
    ```
 
-4. Configure Authentication:
-   - In your Supabase dashboard, go to Authentication -> Settings
-   - Under "Site URL", add your development URL (http://localhost:5173)
-   - Enable Email provider under Authentication -> Providers
-   - (Optional) Configure email templates under Authentication -> Email Templates
-
-5. Set Up Environment Variables:
+4. Configure environment variables:
    ```bash
    cp .env.example .env
    ```
-   Then edit .env and add your Supabase credentials:
-   ```
-   VITE_SUPABASE_URL=your-project-url
-   VITE_SUPABASE_ANON_KEY=your-anon-key
-   ```
+   Then edit .env with your Supabase credentials and preferred iCal service.
 
-## Local Development Setup
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
+5. Start the development server:
    ```bash
    npm run dev
    ```
 
-## Airbnb iCal Integration
+## Deployment
 
-To import reservations from Airbnb:
+1. Deploy the frontend to Render.com:
+   - Push your code to a Git repository
+   - Create a new Static Site on Render.com
+   - Use the settings from `render.yaml`
+   - Add your environment variables
 
-1. Go to your Airbnb listing
-2. Find the Export Calendar option (usually under Calendar Settings)
-3. Copy the iCal URL
-4. Paste the URL in the Import Calendar section of your listing in Dyna
+2. Deploy your chosen iCal service (see iCal Integration Options above)
 
-Note: For development, the application uses a CORS proxy (cors-anywhere) to fetch iCal data. In production, you should:
-- Either set up your own proxy server
-- Or use Supabase Edge Functions to handle the iCal fetching server-side
-- Or configure proper CORS headers on your server
-
-To use cors-anywhere in development:
-1. Visit https://cors-anywhere.herokuapp.com/corsdemo
-2. Click the "Request temporary access" button
-3. Your iCal imports should now work in development
-
-## Deployment to Render.com
-
-1. Push your code to a Git repository (GitHub, GitLab, etc.)
-
-2. Create a new Static Site on Render.com:
-   - Connect your Git repository
-   - Use the following settings:
-     - Build Command: `npm install && npm run build`
-     - Publish Directory: `dist`
-
-3. Add environment variables in Render.com dashboard:
-   - VITE_SUPABASE_URL
-   - VITE_SUPABASE_ANON_KEY
-
-4. Deploy! Render will automatically build and deploy your site.
+3. Update environment variables in Render.com dashboard:
+   - Add your Supabase credentials
+   - Add your chosen iCal service configuration
 
 ## Development Notes
 
-- The dynamic pricing algorithm is currently a placeholder that suggests prices based on occupancy rates
+- The dynamic pricing algorithm is currently a placeholder
 - The calendar shows both Airbnb-imported and manually added reservations
 - Occupancy rates are calculated for the current month
-- All routes except login and signup are protected and require authentication
+- All routes except login and signup are protected
 
 ## Troubleshooting
 
 1. Authentication Issues:
-   - Ensure your Supabase URL and anon key are correct in .env
-   - Check that your Site URL is properly set in Supabase dashboard
-   - Verify that Email provider is enabled in Authentication settings
+   - Verify Supabase credentials
+   - Check Site URL in Supabase settings
+   - Ensure Email provider is enabled
 
 2. Database Issues:
-   - Confirm all tables and policies are created correctly
-   - Check RLS policies if you can't access data after login
-   - Verify your database schema matches the types in supabaseClient.ts
+   - Verify table creation and RLS policies
+   - Check database permissions
+   - Review Supabase logs
 
-3. Calendar Integration Issues:
-   - For development: Make sure you've requested temporary access to the CORS proxy
-   - Ensure your Airbnb iCal URL is valid and accessible
-   - Check network tab for any CORS issues
-   - Verify date formats in the reservations table
+3. Calendar Import Issues:
+   - Verify iCal URL format
+   - Check your chosen iCal service configuration
+   - Review service logs (Deno/Render/Supabase)
+   - Test with the provided example iCal URL
 
 ## Future Improvements
 
@@ -194,4 +201,3 @@ To use cors-anywhere in development:
 - [ ] Automated price updates
 - [ ] Email notifications
 - [ ] Mobile app
-- [ ] Custom proxy server for iCal fetching
