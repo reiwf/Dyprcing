@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: dyna-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false # User needs to set this in Render dashboard
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false # User needs to set this in Render dashboard
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
