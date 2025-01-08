@@ -1,73 +1,104 @@
 # Dyna iCal Proxy Service
 
-A simple Deno service that proxies iCal calendar requests to avoid CORS issues.
+A Deno service that proxies iCal calendar requests to avoid CORS issues.
 
 ## Deployment to Deno Deploy
 
-1. Install the Deno CLI if you haven't already:
-   - Windows (PowerShell): `irm https://deno.land/install.ps1 | iex`
-   - macOS/Linux: `curl -fsSL https://deno.land/x/install/install.sh | sh`
+1. Go to [Deno Deploy](https://dash.deno.com)
+2. Create a new project
+3. Choose "Deploy from URL"
+4. Enter the following settings:
+   - Name: `dyna-ical` (or your preferred name)
+   - Production Branch: `main`
+   - Entry Point: `main.ts`
 
-2. Create a new project on [Deno Deploy](https://dash.deno.com):
-   - Sign in with your GitHub account
-   - Click "New Project"
-   - Choose "Deploy from GitHub"
-   - Select your repository and branch
-   - Set the project directory to `/deno`
-   - Set the entry point file to `main.ts`
+5. After deployment, copy your production URL (e.g., `https://dyna-ical.deno.dev`)
 
-3. Configure Environment Variables:
-   - No environment variables needed for this service
-
-4. Update the frontend .env file:
+6. Update your frontend `.env` file:
    ```env
    VITE_ICAL_SERVICE=deno
-   VITE_DENO_URL=https://your-project-name.deno.dev
+   VITE_DENO_URL=your-deno-deploy-url
    ```
 
-## Local Development
+## Testing the Deployment
 
-1. Start the service:
+1. Make a test request using curl:
    ```bash
-   deno task start
-   ```
-   This will run the service at http://localhost:8000
-
-2. Test the endpoint:
-   ```bash
-   curl -X POST http://localhost:8000 \
+   curl -X POST https://your-deno-deploy-url \
      -H "Content-Type: application/json" \
      -d '{"icalUrl":"https://www.airbnb.com/calendar/ical/123.ics"}'
    ```
 
-## API Documentation
+2. Check the response format:
+   ```json
+   {
+     "data": [
+       {
+         "startDate": "2024-01-01T00:00:00.000Z",
+         "endDate": "2024-01-02T00:00:00.000Z"
+       }
+     ]
+   }
+   ```
 
-### POST /
+## Troubleshooting
 
-Fetches and returns iCal data from the provided URL.
+1. CORS Issues:
+   - Verify the request is using HTTPS
+   - Check browser console for detailed error messages
+   - Ensure the Deno Deploy URL is correct in .env
 
-Request body:
-```json
-{
-  "icalUrl": "string" // The URL of the iCal calendar to fetch
-}
-```
+2. iCal Parsing Issues:
+   - Check the Deno Deploy logs for parsing errors
+   - Verify the Airbnb iCal URL is valid
+   - Look for any date format issues in the logs
 
-Response:
-```json
-{
-  "data": "string" // The raw iCal data
-}
-```
+3. Network Issues:
+   - Ensure your Deno Deploy service is running
+   - Check for any rate limiting or blocking by Airbnb
+   - Verify your network can reach both Deno Deploy and Airbnb
 
-Error Response:
-```json
-{
-  "error": "string" // Error message
-}
-```
+## Local Development
 
-## Security
+1. Install Deno:
+   - Windows (PowerShell):
+     ```powershell
+     irm https://deno.land/install.ps1 | iex
+     ```
+   - macOS/Linux:
+     ```bash
+     curl -fsSL https://deno.land/x/install/install.sh | sh
+     ```
 
-- The service uses CORS headers to allow requests from any origin
-- No authentication is required as the service only proxies publicly available iCal feeds
+2. Run the service locally:
+   ```bash
+   deno task dev
+   ```
+   This will start the service at http://localhost:8000
+
+3. Test with curl:
+   ```bash
+   curl -X POST http://localhost:8000 \
+     -H "Content-Type: application/json" \
+     -d '{"icalUrl":"your-ical-url"}'
+   ```
+
+## Monitoring
+
+1. View Logs:
+   - Go to your project in Deno Deploy dashboard
+   - Click on "Logs" tab
+   - Filter by severity (error, info, debug)
+
+2. Performance Metrics:
+   - Monitor request counts
+   - Check response times
+   - Track error rates
+
+## Security Notes
+
+- The service only accepts POST requests
+- No authentication is required (proxy for public iCal feeds)
+- Rate limiting is handled by Deno Deploy
+- CORS is configured to allow requests from any origin
+- Only fetches from provided iCal URLs

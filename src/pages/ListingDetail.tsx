@@ -6,7 +6,7 @@ import { supabase, type Listing, type Reservation } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 
 // Configure which service to use for iCal fetching
-const ICAL_SERVICE = import.meta.env.VITE_ICAL_SERVICE || 'deno'; // 'supabase', 'proxy', or 'deno'
+const ICAL_SERVICE = import.meta.env.VITE_ICAL_SERVICE || 'deno';
 const PROXY_URL = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
 const DENO_URL = import.meta.env.VITE_DENO_URL || 'http://localhost:8000';
 
@@ -23,6 +23,7 @@ export function ListingDetail() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [icalUrl, setIcalUrl] = useState('');
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -67,9 +68,9 @@ export function ListingDetail() {
   };
 
   const fetchIcalData = async (url: string): Promise<ICalEvent[]> => {
+    let serviceUrl = '';
     switch (ICAL_SERVICE) {
       case 'supabase':
-        // Use Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('fetch-ical', {
           body: { icalUrl: url },
         });
@@ -77,51 +78,53 @@ export function ListingDetail() {
         return data.data;
 
       case 'proxy':
-        // Use Express proxy server
-        const proxyResponse = await fetch(`${PROXY_URL}/fetch-ical`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ icalUrl: url }),
-        });
-
-        if (!proxyResponse.ok) {
-          const error = await proxyResponse.json();
-          throw new Error(error.message || 'Failed to fetch calendar data');
-        }
-
-        const proxyData = await proxyResponse.json();
-        return proxyData.data;
+        serviceUrl = `${PROXY_URL}/fetch-ical`;
+        break;
 
       case 'deno':
-        // Use Deno Deploy service
-        const denoResponse = await fetch(DENO_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ icalUrl: url }),
-        });
-
-        if (!denoResponse.ok) {
-          const error = await denoResponse.json();
-          throw new Error(error.message || 'Failed to fetch calendar data');
-        }
-
-        const denoData = await denoResponse.json();
-        return denoData.data;
+        serviceUrl = DENO_URL;
+        break;
 
       default:
         throw new Error(`Unknown iCal service: ${ICAL_SERVICE}`);
     }
+
+    console.log('Using service URL:', serviceUrl);
+    const response = await fetch(serviceUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ icalUrl: url }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.error || 
+        errorData.message || 
+        `HTTP error! status: ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+    console.log('Service response:', data);
+    return data.data;
   };
 
   const handleImportIcal = async () => {
     if (!icalUrl.trim()) return;
+    setImporting(true);
+    setError('');
 
     try {
+      console.log('Starting iCal import from:', icalUrl);
       const events = await fetchIcalData(icalUrl);
+      console.log('Received events:', events);
+
+      if (!events?.length) {
+        throw new Error('No events found in the calendar');
+      }
 
       // Prepare reservations for upsert
       const newReservations = events.map((event: ICalEvent) => ({
@@ -130,6 +133,8 @@ export function ListingDetail() {
         end_date: event.endDate.split('T')[0],
         source: 'airbnb',
       }));
+
+      console.log('Upserting reservations:', newReservations);
 
       // Upsert reservations
       const { error: upsertError } = await supabase
@@ -141,12 +146,14 @@ export function ListingDetail() {
       if (upsertError) throw upsertError;
 
       // Refresh reservations
-      fetchListingAndReservations();
+      await fetchListingAndReservations();
       setIcalUrl('');
       setError(''); // Clear any previous errors
     } catch (error) {
       console.error('Error importing iCal:', error);
-      setError('Failed to import calendar data');
+      setError(error instanceof Error ? error.message : 'Failed to import calendar data');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -217,8 +224,9 @@ export function ListingDetail() {
         </div>
 
         {error && (
-          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded" role="alert">
-            {error}
+          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
           </div>
         )}
 
@@ -245,14 +253,23 @@ export function ListingDetail() {
                 onChange={(e) => setIcalUrl(e.target.value)}
                 placeholder="Paste your Airbnb iCal URL"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                disabled={importing}
               />
               <button
                 onClick={handleImportIcal}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={importing || !icalUrl.trim()}
+                className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
+                  ${importing || !icalUrl.trim() 
+                    ? 'bg-blue-400 cursor-not-allowed' 
+                    : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  }`}
               >
-                Import
+                {importing ? 'Importing...' : 'Import'}
               </button>
             </div>
+            <p className="mt-2 text-sm text-gray-500">
+              Paste the iCal URL from your Airbnb listing's calendar export
+            </p>
           </div>
 
           <div className="bg-white rounded-lg">

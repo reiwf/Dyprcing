@@ -3,8 +3,9 @@ import { serve } from "./deps.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 interface ICalEvent {
@@ -14,7 +15,7 @@ interface ICalEvent {
 
 function parseICalData(icalData: string): ICalEvent[] {
   const events: ICalEvent[] = [];
-  const lines = icalData.split('\n');
+  const lines = icalData.split(/\r?\n/);
   let currentEvent: Partial<ICalEvent> = {};
   let inEvent = false;
 
@@ -30,9 +31,21 @@ function parseICalData(icalData: string): ICalEvent[] {
         events.push(currentEvent as ICalEvent);
       }
     } else if (inEvent) {
+      // Handle line continuations
+      if (trimmedLine.startsWith(' ') || trimmedLine.startsWith('\t')) {
+        continue;
+      }
+
       if (trimmedLine.startsWith('DTSTART')) {
         const dateStr = trimmedLine.split(':')[1];
         try {
+          // Try parsing with Date.parse first
+          const timestamp = Date.parse(dateStr);
+          if (!isNaN(timestamp)) {
+            currentEvent.startDate = new Date(timestamp).toISOString();
+            continue;
+          }
+
           // Handle different date formats
           let date: Date;
           if (dateStr.includes('T')) {
@@ -60,6 +73,13 @@ function parseICalData(icalData: string): ICalEvent[] {
       } else if (trimmedLine.startsWith('DTEND')) {
         const dateStr = trimmedLine.split(':')[1];
         try {
+          // Try parsing with Date.parse first
+          const timestamp = Date.parse(dateStr);
+          if (!isNaN(timestamp)) {
+            currentEvent.endDate = new Date(timestamp).toISOString();
+            continue;
+          }
+
           // Handle different date formats
           let date: Date;
           if (dateStr.includes('T')) {
@@ -94,7 +114,10 @@ function parseICalData(icalData: string): ICalEvent[] {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
   }
 
   if (req.method !== 'POST') {
@@ -130,23 +153,22 @@ serve(async (req) => {
       const response = await fetch(icalUrl, { 
         signal: controller.signal,
         headers: {
-          'Accept': 'text/calendar',
+          'Accept': '*/*',
           'User-Agent': 'Dyna-iCal-Service/1.0'
         }
       });
       clearTimeout(timeout);
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch iCal data: ${response.statusText}`);
+        throw new Error(`Failed to fetch iCal data: ${response.statusText} (${response.status})`);
       }
 
       const contentType = response.headers.get('content-type');
-      if (!contentType?.includes('text/calendar') && !contentType?.includes('text/plain')) {
-        console.warn('Unexpected content type:', contentType);
-      }
+      console.log('Response content type:', contentType);
 
       const icalData = await response.text();
-      console.log('Received iCal data, parsing...');
+      console.log('Received iCal data length:', icalData.length);
+      console.log('First 100 chars:', icalData.slice(0, 100));
 
       if (!icalData.includes('BEGIN:VCALENDAR')) {
         throw new Error('Invalid iCal data: Missing VCALENDAR header');
@@ -154,6 +176,7 @@ serve(async (req) => {
 
       const events = parseICalData(icalData);
       console.log('Successfully parsed events:', events.length);
+      console.log('First event:', events[0]);
 
       return new Response(
         JSON.stringify({ data: events }),
